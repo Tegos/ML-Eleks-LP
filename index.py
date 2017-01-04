@@ -1,47 +1,40 @@
-import numpy as np
 import urllib
 
-import pandas
-import scipy
-import seaborn as seaborn
-from pandas import read_csv
-from sklearn import metrics
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn import preprocessing
 import matplotlib.pyplot as plt
-import plotly.plotly as py
-import seaborn as sns
-import numpy.random as nr
-from sklearn.neighbors.kde import KernelDensity
+import numpy as np
+import pandas as pd
+import scipy as scipy
+import sklearn
+from pandas import read_csv
 from sklearn import linear_model
-from sklearn.svm import SVR
+from sklearn import preprocessing
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.neighbors.kde import KernelDensity
 
 arr_cols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 
 # url with dataset
-url = 'zoo.csv'
-# download the file
-raw_data = urllib.urlopen('datasets/' + url)
+url = 'datasets/zoo.csv'
+
+# csv
+zoo_csv_data = read_csv(url)
+
+raw_data = urllib.urlopen(url)
 # load the CSV file as a numpy matrix
-dataset = np.loadtxt(raw_data, delimiter=',',
-                     skiprows=1,
-                     # converters={0: lambda x: datetime.strptime(x, "%d-%m-%Y %H-%M-%S")}
-                     usecols=arr_cols
-                     )
+data_set = np.loadtxt(
+    raw_data, delimiter=',',
+    skiprows=1,
+    usecols=arr_cols
+)
 
-# separate the data from the target attributes
-X = dataset[:, 0:15]
-y = dataset[:, 16]
-#
-# # normalize the data attributes
+X = data_set[:, 0:15]
+y = data_set[:, 15]
+
+# normalize the data attributes
 normalized_X = preprocessing.normalize(X)
-# standardize the data attributes
-standardized_X = preprocessing.scale(X)
+normalized_y = preprocessing.normalize(y)
 
-model = ExtraTreesClassifier()
-model.fit(X, y)
-# display the relative importance of each attribute
-print(model.feature_importances_)
+print (normalized_X)
 
 # print (standardized_X)
 
@@ -64,11 +57,11 @@ plt.ylabel('Density')
 # plt.show()
 
 # -------------------------
-zoo_csv_data = read_csv('datasets/zoo.csv')
+
 predator_g = zoo_csv_data.groupby(['predator']).size()
 names = zoo_csv_data.animal_name
 
-print predator_g
+# print predator_g
 plt.figure()
 plt.subplot(aspect=True)
 plt.pie(predator_g, labels=['Not Predator', 'Predator'],
@@ -82,6 +75,7 @@ plt.title('Predators in the Zoo')
 
 column_names = ['hair', 'feathers', 'eggs', 'milk', 'airborne', 'aquatic', 'predator',
                 'toothed', 'backbone', 'breathes', 'venomous', 'fins', 'legs', 'tail', 'domestic']
+
 value_names = ['Mean', 'Median', 'Mode', 'Range', 'Variance', 'Skewness', 'Kurtosis']
 
 data_table = []
@@ -101,8 +95,23 @@ for x in column_names:
 # print pandas.DataFrame(data_table, column_names, value_names)
 
 # ----------  Box Plots
-box_plot = pandas.DataFrame(zip(X[:, 12], X[:, 13]), columns=['Count of legs', 'Has tail'])
-box_plot.boxplot(column='Count of legs', by='Has tail')
+# plt.figure()
+# df_box_plot = pd.DataFrame(zoo_csv_data, columns=column_names)
+df_box_plot = pd.DataFrame(normalized_X, columns=column_names)
+df_box_plot.plot.box().set_ylim(-0.01, 1.01)
+plt.title('Box plot for digit features')
+# plt.show()
+
+# bar fins
+plt.figure()
+zoo_csv_data['fins'].value_counts().plot(kind='bar')
+plt.title('Bar of "Fins"')
+# plt.show()
+
+# bar legs
+plt.figure()
+zoo_csv_data['legs'].value_counts().plot.hist(orientation='horizontal', cumulative=True)
+plt.title('Histgram  of "Legs"')
 # plt.show()
 
 # ------- Pearson
@@ -120,29 +129,72 @@ for x in column_names:
     # print s_c
 
 # ------------ scatter_plot
-plt.figure()
-seaborn.regplot(normalized_X[:, 4], y)
-# plt.show()
 
-plt.figure()
-seaborn.regplot(normalized_X[:, 13], y)
-# plt.show()
+plt.scatter(normalized_X[:, 11], normalized_y, color='DarkGreen')
+plt.scatter(normalized_X[:, 14], normalized_y, color='DarkBlue')
+plt.show()
 
-# --------- regression ------
+print '\n--------- feature_importances --------'
+
+model_ETS = ExtraTreesClassifier()
+model_ETS.fit(X, y)
+
+feature_importances = model_ETS.feature_importances_
+index_features = np.argsort(feature_importances).tolist()
+feature_importances = sorted(model_ETS.feature_importances_, reverse=True)
+
+most_important_0 = column_names[index_features.index(0)]
+most_important_1 = column_names[index_features.index(1)]
+
+print most_important_0, ' - ', feature_importances[0]
+print most_important_1, ' - ', feature_importances[1]
+
+# Linear regression
+print '--------- regression --------'
 x_parameter = []
 y_parameter = []
-for legs_data, type_class_data in zip(zoo_csv_data['legs'], zoo_csv_data['class_type']):
+
+# good venomous, backbone
+
+# Use only one feature
+for legs_data, type_class_data in zip(zoo_csv_data['backbone'], zoo_csv_data['class_type']):
     x_parameter.append([float(legs_data)])
     y_parameter.append(float(type_class_data))
 
-predict_value = 4
+backbone_X = x_parameter
+target = y_parameter
+
+backbone_X_train, backbone_X_test, backbone_y_train, backbone_y_test = sklearn.cross_validation.train_test_split(
+    backbone_X,
+    target,
+    test_size=0.05,  # for backbone,
+    random_state=135
+    # test_size=0.1, for venomous
+    # random_state=1000
+)
+
 regr = linear_model.LinearRegression()
-regr.fit(x_parameter, y_parameter)
-predict_outcome = regr.predict(predict_value)
-predictions = {'intercept': regr.intercept_, 'coefficient': regr.coef_, 'predicted_value': predict_outcome}
 
-print "\nIntercept value ", predictions['intercept']
-print "coefficient", predictions['coefficient']
-print "Predicted value: ", predictions['predicted_value']
+# Train the model
+regr.fit(backbone_X_train, backbone_y_train)
 
-print ('End')
+# The coefficients
+print('Coefficients: \n', regr.coef_)
+# The mean squared error
+print("Mean squared error: %.2f"
+      % np.mean((regr.predict(backbone_X_test) - backbone_y_test) ** 2))
+# Explained variance score: 1 is perfect prediction
+print('Variance score: %.2f' % regr.score(backbone_X_test, backbone_y_test))
+
+# Plot outputs
+plt.figure()
+plt.scatter(backbone_X_test, backbone_y_test, color='black')
+plt.plot(
+    backbone_X_test,
+    regr.predict(backbone_X_test),
+    color='blue',
+    linewidth=2)
+plt.xticks(())
+plt.yticks(())
+
+plt.show()
